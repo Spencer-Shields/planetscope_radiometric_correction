@@ -6,7 +6,7 @@ source('check_radiometric_consistency.R') #load functions for checking radiometr
 
 
 ##implement the LORACCS algorithm for radiometric correction of slightly overlapping images. 
-#Based on hhttps://github.com/swegmueller/LORACCS_Mosaic_Correction
+#Based on https://github.com/swegmueller/LORACCS_Mosaic_Correction
 
 LORACCS = function(target,reference){ #target is corrected to match reference
   
@@ -79,7 +79,7 @@ LORACCS = function(target,reference){ #target is corrected to match reference
 # 
 # ref = scenes[[1]]
 # tar = scenes[[2]]
-
+# 
 # #simple rasters
 # layers = c('blue', 'green', 'red', 'nir')
 # 
