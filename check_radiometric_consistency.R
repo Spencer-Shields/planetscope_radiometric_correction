@@ -4,9 +4,9 @@ library(tidyverse)
 library(terra)
 library(pbapply)
 
-#----Calculate the Root Mean Squared Error of two single-band rasters----
+#----Calculate the Root Mean Squared Error of two rasters----
 
-rmse = function(raster1, raster2, verbose = T) { 
+rmse = function(raster1, raster2, verbose = T, n_cells = 1000000) { #Verbose means that a message prints when raster extents do not perfectly match.
   #Calculate the root mean squared error between bands of two rasters. Each raster should have the same number of bands in the same order.
   
   #check if extents match
@@ -30,43 +30,44 @@ rmse = function(raster1, raster2, verbose = T) {
 
 #----Calculate the Normalized Root Mean Squared Error of two single-band rasters (INCOMPLETE)----
 # #for a discussion on different methods, see https://www.marinedatascience.co/blog/2019/01/07/normalizing-the-rmse/
-# nrmse = function(raster1, raster2, method = 'mean'){ #method can be 'mean', 'median', 'range', 'interquartile', or 'stdev'
-# #calculate normalized root mean squared error. NOTE: this is much slower than the RMSE function because it does not leverage the terra::global functions which are created with Rcpp.  
-#   #check if extents match
-#   if(ext(raster1) != ext(raster2)){
-#     int = terra::intersect(raster1,raster2)
-#     raster1 = crop(raster1,int,mask=T)
-#     raster2 = crop(raster2,int,mask=T)
-#     
-#     print('Raster extents do not match, calculation based on terra::intersecting area.')
-#   }
-#   
-#   #calculate Root Mean Squared Error
-#   RMSE = rmse(raster1, raster2)
-#   
-#   #get denominator to normalize
-#   v = c(values(raster1[[1]], na.rm = T), values(raster2[[1]], na.rm = T)) #pool raster values
-#   
-#   denominator = case_match(method,
-#                            'mean' ~ mean(v),
-#                            'median' ~ median(v),
-#                            'range' ~ max(v)-min(v),
-#                            'interquartile' ~ IQR(v),
-#                            'stdev' ~ sd(v)
-#   )
-#   
-#   #get denominator to normalize
-#   
-#   denominator = case_match(method,
-#                            'mean' ~ global(),
-#                            'median' ~ median(v),
-#                            'range' ~ max(v)-min(v),
-#                            'interquartile' ~ IQR(v),
-#                            'stdev' ~ sd(v)
-#   
-#   NRMSE = RMSE/denominator
-#   return(NRMSE)
-# }
+
+nrmse = function(raster1, raster2, verbose = T, method = 'mean'){ #method can be 'mean', 'median', 'range', 'interquartile', or 'stdev'
+# calculate normalized root mean squared error. NOTE: this is much slower than the RMSE function because it does not leverage the terra::global functions which are created with Rcpp.
+  
+  #check if extents match
+  if(ext(raster1) != ext(raster2)){
+    int = terra::intersect(raster1,raster2)
+    raster1 = crop(raster1,int,mask=T)
+    raster2 = crop(raster2,int,mask=T)
+
+    print('Raster extents do not match, calculation based on intersecting area.')
+  }
+
+  #calculate Root Mean Squared Error
+  RMSE = rmse(raster1, raster2, verbose = verbose)
+
+  #get denominator to normalize
+  denominators = pbsapply(X = 1:nlyr(raster1), FUN = function(i){
+    
+    v = c(values(raster1[[1]], na.rm = T), values(raster2[[1]], na.rm = T)) 
+    
+    denominator = case_match(method,
+                             'mean' ~ mean(v),
+                             'median' ~ median(v),
+                             'range' ~ max(v)-min(v),
+                             'iqr' ~ IQR(v),
+                             'stdev' ~ sd(v))
+  })
+  
+  
+  
+  NRMSE = RMSE %>%
+    mutate(denominators = denominators) %>%
+    mutate(nrmse = rmse/denominators)
+  
+  names(NRMSE) = c('rmse', method, 'nrmse')
+  return(NRMSE)
+}
 
 
 #----Perform a Kolmogorov-Smirnov test----
@@ -79,7 +80,7 @@ ks = function(raster1, raster2, n_cells = 1000000){ #size is the number of cells
     raster1 = crop(raster1,int,mask=T)
     raster2 = crop(raster2,int,mask=T)
     
-    print('Raster extents do not match, calculation based on terra::intersecting area.')
+    print('Raster extents do not match, calculation based on intersecting area.')
   }
   
   #generate list with results from ks between corresponding bands of each raster
@@ -104,40 +105,40 @@ ks = function(raster1, raster2, n_cells = 1000000){ #size is the number of cells
 
 #----Plot reflectance histograms for each band (INCOMPLETE)----
 
-# band_hists = function(raster1, raster2, bands = NULL){ #bands can take a numeric or character vector of what bands to plot
-#   
-#   #check if extents match
-#   if(ext(raster1) != ext(raster2)){
-#     int = terra::intersect(raster1,raster2)
-#     raster1 = crop(raster1,int,mask=T)
-#     raster2 = crop(raster2,int,mask=T)
-#     
-#     print('Raster extents do not match, calculation based on terra::intersecting area.')
-#   }
-#   
-#   #make histograms
-#   if(is.null(bands)){
-#     bands = 1:nlyr(raster1)
-#   } else {
-#     bands}
-#   r1 = raster1[[bands]]
-#   r2 = raster2[[bands]]
-#   
-#   
-#   v1 = as_tibble(values(r1)) %>% mutate(Raster = 'raster1')
-#   v2 = as_tibble(values(r2)) %>% mutate(Raster = 'raster2')
-#   
-#   v_all = rbind(v1, v2) %>%
-#     pivot_longer(cols = bands, names_to = 'bands', values_to = 'vals')
-#   
-#   ggplot(v_all, aes(x = vals, fill = Raster))+
-#     geom_density(alpha = 0.5)+
-#     facet_wrap(facets = vars(bands)
-#                , ncol = ceiling(sqrt(length(bands)))
-#                , nrow = ceiling(sqrt(length(bands)))
-#                )
-#   
-# }
+band_hists = function(raster1, raster2, bands = NULL){ #bands can take a numeric or character vector of what bands to plot
+
+  #check if extents match
+  if(ext(raster1) != ext(raster2)){
+    int = terra::intersect(raster1,raster2)
+    raster1 = crop(raster1,int,mask=T)
+    raster2 = crop(raster2,int,mask=T)
+
+    print('Raster extents do not match, calculation based on terra::intersecting area.')
+  }
+
+  #make histograms
+  if(is.null(bands)){
+    bands = 1:nlyr(raster1)
+  } else {
+    bands}
+  r1 = raster1[[bands]]
+  r2 = raster2[[bands]]
+
+
+  v1 = as_tibble(values(r1)) %>% mutate(Raster = 'raster1')
+  v2 = as_tibble(values(r2)) %>% mutate(Raster = 'raster2')
+
+  v_all = rbind(v1, v2) %>%
+    pivot_longer(cols = bands, names_to = 'bands', values_to = 'vals')
+
+  ggplot(v_all, aes(x = vals, fill = Raster))+
+    geom_density(alpha = 0.5)+
+    facet_wrap(facets = vars(bands)
+               , ncol = ceiling(sqrt(length(bands)))
+               , nrow = ceiling(sqrt(length(bands)))
+               )
+
+}
 
 
 #----test, debug----
