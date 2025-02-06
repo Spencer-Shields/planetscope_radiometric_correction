@@ -32,20 +32,20 @@ rmse = function(raster1, raster2, verbose = T, n_cells = 1000000) { #Verbose mea
 # #for a discussion on different methods, see https://www.marinedatascience.co/blog/2019/01/07/normalizing-the-rmse/
 
 nrmse = function(raster1, raster2, verbose = T, method = 'mean'){ #method can be 'mean', 'median', 'range', 'interquartile', or 'stdev'
-# calculate normalized root mean squared error. NOTE: this is much slower than the RMSE function because it does not leverage the terra::global functions which are created with Rcpp.
+  # calculate normalized root mean squared error. NOTE: this is much slower than the RMSE function because it does not leverage the terra::global functions which are created with Rcpp.
   
   #check if extents match
   if(ext(raster1) != ext(raster2)){
     int = terra::intersect(raster1,raster2)
     raster1 = crop(raster1,int,mask=T)
     raster2 = crop(raster2,int,mask=T)
-
+    
     print('Raster extents do not match, calculation based on intersecting area.')
   }
-
+  
   #calculate Root Mean Squared Error
   RMSE = rmse(raster1, raster2, verbose = verbose)
-
+  
   #get denominator to normalize
   denominators = pbsapply(X = 1:nlyr(raster1), FUN = function(i){
     
@@ -105,17 +105,22 @@ ks = function(raster1, raster2, n_cells = 1000000){ #size is the number of cells
 
 #----Plot reflectance histograms for each band (INCOMPLETE)----
 
-band_hists = function(raster1, raster2, bands = NULL){ #bands can take a numeric or character vector of what bands to plot
-
+band_hists = function(raster1, raster2, on_overlap = T, bands = NULL){
+  #wrapper function for 
+  #bands can take a numeric or character vector of what bands to plot, 
+  #on_overlap determines whether the operation is applied to hte whole raster or just the overlapping portion 
+  
   #check if extents match
-  if(ext(raster1) != ext(raster2)){
-    int = terra::intersect(raster1,raster2)
-    raster1 = crop(raster1,int,mask=T)
-    raster2 = crop(raster2,int,mask=T)
-
-    print('Raster extents do not match, calculation based on terra::intersecting area.')
+  if(on_overlap == T){
+    
+    if(ext(raster1) != ext(raster2)){
+      int = terra::intersect(raster1,raster2)
+      raster1 = crop(raster1,int,mask=T)
+      raster2 = crop(raster2,int,mask=T)
+      
+      print('Raster extents do not match, calculation based on terra::intersecting area.')
+    }
   }
-
   #make histograms
   if(is.null(bands)){
     bands = 1:nlyr(raster1)
@@ -123,37 +128,48 @@ band_hists = function(raster1, raster2, bands = NULL){ #bands can take a numeric
     bands}
   r1 = raster1[[bands]]
   r2 = raster2[[bands]]
-
-
+  
+  
   v1 = as_tibble(values(r1)) %>% mutate(Raster = 'raster1')
   v2 = as_tibble(values(r2)) %>% mutate(Raster = 'raster2')
-
+  
   v_all = rbind(v1, v2) %>%
     pivot_longer(cols = bands, names_to = 'bands', values_to = 'vals')
-
-  ggplot(v_all, aes(x = vals, fill = Raster))+
+  
+  p = ggplot(v_all, aes(x = vals, fill = Raster))+
     geom_density(alpha = 0.5)+
     facet_wrap(facets = vars(bands)
                , ncol = ceiling(sqrt(length(bands)))
                , nrow = ceiling(sqrt(length(bands)))
-               )
-
+    )
+  
+  return(p)
+  
 }
 
 
 #----test, debug----
 
-# #make rasters
-# r1 = rast(ncol = 500, nrow = 500, xmin = 0, xmax = 500, ymin = 0, ymax = 500, vals = rnorm(500 * 500, mean = runif(1), sd = runif(1)))
-# r2 = runif(1)*r1+runif(1)
-#   
-# # na_indices <- sample(ncell(r1), 25)  # Randomly select 25 cell indices
-# # values(r1)[na_indices] <- NA
-# 
+#make rasters
+ncolumns = 500
+nrows = 500
+nlayers = 4
+r1 = rast(ncol = ncolumns, nrow = nrows, nlyr = nlayers, xmin = 0, xmax = ncolumns, ymin = 0, ymax = nrows, 
+          vals = rnorm(ncolumns * nrows * nlayers, mean = runif(1), sd = runif(1)))
+
+r2 = runif(1)*r1+runif(1)
+
+#make rasters partially overlapping by assigning NA values to columns
+r1[,1:(nrows/4)] = NA
+r2[,(nrows:nrows-(nrows/4))] = NA
+
+# na_indices <- sample(ncell(r1), 25)  # Randomly select 25 cell indices
+# values(r1)[na_indices] <- NA
+
 # hist(r1, col = 'blue')
 # hist(r2, col = 'red', add = T)
 # 
-# hist(r1, col = rgb(0, 0, 1, 0.5), nclass = 20, xlim = c(min(c(values(r1), values(r2))), max(c(values(r1), values(r2)))), 
+# hist(r1, col = rgb(0, 0, 1, 0.5), nclass = 20, xlim = c(min(c(values(r1), values(r2))), max(c(values(r1), values(r2)))),
 #      main = "Histograms of Rasters", xlab = "Pixel Values", ylab = "Frequency")
 # hist(r2, nclass = 20, col = rgb(1, 0, 0, 0.5), add = TRUE)
 # 
