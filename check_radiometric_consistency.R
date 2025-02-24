@@ -4,10 +4,16 @@ library(tidyverse)
 library(terra)
 library(pbapply)
 
-#----Calculate the Root Mean Squared Error of two rasters----
+#----Calculate root mean squared error----
 
-rmse = function(raster1, raster2, verbose = T, n_cells = 1000000) { #Verbose means that a message prints when raster extents do not perfectly match.
-  #Calculate the root mean squared error between bands of two rasters. Each raster should have the same number of bands in the same order.
+rmse = function(raster1, raster2, normalise_rmse = F, method = 'mean', verbose = T, maxcell = max(ncell(raster1), ncell(raster2))){
+  #Calculate the root mean squared error between two rasters.
+  #Normalization based on code in https://www.marinedatascience.co/blog/2019/01/07/normalizing-the-rmse/ .
+  # raster1, raster2: SpatRaster objects being compared.
+  #normalise_rmse: Specify whether or not to normalize the RMSE.Enables the comparison of rasters with different units (e.g. different vegetation indices).
+  #method: If normalise_rmse = T, specifies the denominator used for normalization (one of 'mean', 'median', 'range', 'iqr' [interquartile range], or 'stdev').
+  #verbose: Should the function print messages.
+  #maxcell: Maximum number of cells to use. May be specified in order to process very large rasters.
   
   #check if extents match
   if(ext(raster1) != ext(raster2)){
@@ -18,57 +24,38 @@ rmse = function(raster1, raster2, verbose = T, n_cells = 1000000) { #Verbose mea
     if(verbose == T){print('Raster extents do not match, calculation based on intersecting area.')}
   }
   
-  #calculate rmse
-  error = raster1 - raster2 #return raster which is the difference of raster1 and raster2
+  #calculate error
+  error = raster1 - raster2
   
-  RMSE = global(error, 'rms', na.rm = T) #return data.frame of rmse values
-  names(RMSE) = 'rmse' #assign dataframe column name
+  #calculate RMSE
   
-  return(RMSE)
-} 
-
-
-#----Calculate the Normalized Root Mean Squared Error of two single-band rasters (INCOMPLETE)----
-# #for a discussion on different methods, see https://www.marinedatascience.co/blog/2019/01/07/normalizing-the-rmse/
-
-nrmse = function(raster1, raster2, verbose = T, method = 'mean'){ #method can be 'mean', 'median', 'range', 'interquartile', or 'stdev'
-  # calculate normalized root mean squared error. NOTE: this is much slower than the RMSE function because it does not leverage the terra::global functions which are created with Rcpp.
+  RMSE = global(error, na.rm = T, maxcell = maxcell, fun = 'rms')
+  names(RMSE) = 'rmse'
   
-  #check if extents match
-  if(ext(raster1) != ext(raster2)){
-    int = terra::intersect(raster1,raster2)
-    raster1 = crop(raster1,int,mask=T)
-    raster2 = crop(raster2,int,mask=T)
+  #check for normalization, normalize if T
+  if(normalise_rmse == T){
+    #define dummy functions to use in global
+    getiqr = function(r){IQR(r, na.rm= T)}
+    getmedian = function(r){median(r, na.rm = T)}
     
-    print('Raster extents do not match, calculation based on intersecting area.')
+    
+    denominator <- switch(method,
+                          'mean'   = global(raster1, na.rm = T, maxcell = maxcell, fun = 'mean'),
+                          'stdev'  = global(raster1, na.rm = T, maxcell = maxcell, fun = 'std'),
+                          'range'  = global(raster1, na.rm = T, maxcell = maxcell, fun = 'range') %>% mutate(range = max - min),
+                          'iqr'    = setNames(global(raster1, maxcell = maxcell, fun = function(i) getiqr(i)), 'global'),
+                          'median' = setNames(global(raster1, maxcell = maxcell, fun = function(i) getmedian(i)), 'global'),
+                          stop("Invalid method")
+    )
+    
+    RMSE = cbind(RMSE, denominator) %>% select(all_of(c('rmse',method)))
+    RMSE$nrmse = RMSE[['rmse']]/RMSE[[2]]
   }
   
-  #calculate Root Mean Squared Error
-  RMSE = rmse(raster1, raster2, verbose = verbose)
+  #return RMSE
+  return(RMSE)
   
-  #get denominator to normalize
-  denominators = pbsapply(X = 1:nlyr(raster1), FUN = function(i){
-    
-    v = c(values(raster1[[1]], na.rm = T), values(raster2[[1]], na.rm = T)) 
-    
-    denominator = case_match(method,
-                             'mean' ~ mean(v),
-                             'median' ~ median(v),
-                             'range' ~ max(v)-min(v),
-                             'iqr' ~ IQR(v),
-                             'stdev' ~ sd(v))
-  })
-  
-  
-  
-  NRMSE = RMSE %>%
-    mutate(denominators = denominators) %>%
-    mutate(nrmse = rmse/denominators)
-  
-  names(NRMSE) = c('rmse', method, 'nrmse')
-  return(NRMSE)
 }
-
 
 #----Perform a Kolmogorov-Smirnov test----
 
@@ -121,7 +108,8 @@ band_hists = function(raster1, raster2, on_overlap = T, bands = NULL){
       print('Raster extents do not match, calculation based on terra::intersecting area.')
     }
   }
-  #make histograms
+  
+  #make density plots
   if(is.null(bands)){
     bands = 1:nlyr(raster1)
   } else {
@@ -151,27 +139,15 @@ band_hists = function(raster1, raster2, on_overlap = T, bands = NULL){
 #----test, debug----
 
 #make rasters
-ncolumns = 500
-nrows = 500
+ncolumns = 1000
+nrows = 1000
 nlayers = 4
-r1 = rast(ncol = ncolumns, nrow = nrows, nlyr = nlayers, xmin = 0, xmax = ncolumns, ymin = 0, ymax = nrows, 
+r1 = rast(ncol = ncolumns, nrow = nrows, nlyr = nlayers, xmin = 0, xmax = ncolumns, ymin = 0, ymax = nrows,
           vals = rnorm(ncolumns * nrows * nlayers, mean = runif(1), sd = runif(1)))
 
 r2 = runif(1)*r1+runif(1)
 
 #make rasters partially overlapping by assigning NA values to columns
 r1[,1:(nrows/4)] = NA
-r2[,(nrows:nrows-(nrows/4))] = NA
+r2[,(nrows:(nrows-(nrows/4)))] = NA
 
-# na_indices <- sample(ncell(r1), 25)  # Randomly select 25 cell indices
-# values(r1)[na_indices] <- NA
-
-# hist(r1, col = 'blue')
-# hist(r2, col = 'red', add = T)
-# 
-# hist(r1, col = rgb(0, 0, 1, 0.5), nclass = 20, xlim = c(min(c(values(r1), values(r2))), max(c(values(r1), values(r2)))),
-#      main = "Histograms of Rasters", xlab = "Pixel Values", ylab = "Frequency")
-# hist(r2, nclass = 20, col = rgb(1, 0, 0, 0.5), add = TRUE)
-# 
-# a = density(values(r1), col = 'blue', plot = T)
-# lines(density(values(r2), col = 'red'))
