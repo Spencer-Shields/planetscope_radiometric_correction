@@ -1,16 +1,9 @@
-library(terra)
-library(pbapply)
-source('check_radiometric_consistency.R')
-
 #Calculate the softmax function for each band of a raster.
 
 softmax = function(raster, normalize = T){
-  
   # exp_ = function(r){exp(r)} #helper function
-  
-  sm_bands = pblapply(X = 1:nlyr(raster), FUN = function(i){
-    
-    denom = global(exp(raster[[i]]), 'sum')
+  sm_bands = pbapply::pblapply(X = 1:terra::nlyr(raster), FUN = function(i){
+    denom = terra::global(exp(raster[[i]]), 'sum')
   })
 }
 
