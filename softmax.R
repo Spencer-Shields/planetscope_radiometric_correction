@@ -1,20 +1,37 @@
-library(terra)
-library(pbapply)
-source('check_radiometric_consistency.R')
+# library(terra)
+# library(pbapply)
+# source('check_radiometric_consistency.R')
 
 #Calculate the softmax function for each band of a raster.
 
-softmax = function(raster, normalize = T){
+softmax = function(raster, append_name = FALSE){
   
-  # exp_ = function(r){exp(r)} #helper function
+  sums = global(exp(raster), 'sum', na.rm = T)
   
-  sm_bands = pblapply(X = 1:nlyr(raster), FUN = function(i){
-    
-    denom = global(exp(raster[[i]]), 'sum')
+  sm_l = pblapply(X = 1:nlyr(raster), FUN = function(i){
+    num = exp(raster[[i]])
+    denom = sums$sum[i]
+    sm = num/denom
+    return(sm)
   })
+  
+  sm = rast(sm_l)
+  
+  if(append_name == T){
+    names(sm) = paste0(names(raster),'_softmax')
+  }
+  
+  return(sm)
+  
 }
 
 # #calculate hue index
 # hue_ind = function(r){
 #   atan((r[['green']]-r[['blue']])*(2*r[['red']]-r[['green']]-r[['blue']])/30.5)
 # }
+
+# path = "D:/Quesnel/data/planet_scenes/VegIndices/20210617_182517_55_2459_VegIndices.tif"
+# r = rast(path)
+# 
+# r
+# r_sm = softmax(r)
