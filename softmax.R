@@ -5,7 +5,10 @@
 #Calculate the softmax function for each band of a raster.
 
 softmax = function(raster, append_name = FALSE){
-  
+  #Calculate softmax function on a multiband spatraster.
+  #Input and output == multiband spatraster.
+  #append_names will add '_softmax' on the end of hte original band names.
+  #NOTE: it is recommended to rescale data to low values (e.g. [0,1]) before using this function.
   sums = global(exp(raster), 'sum', na.rm = T)
   
   sm_l = pblapply(X = 1:nlyr(raster), FUN = function(i){
