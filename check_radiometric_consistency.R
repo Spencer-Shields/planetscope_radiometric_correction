@@ -90,9 +90,9 @@ ks = function(raster1, raster2, n_cells = 1000000){ #size is the number of cells
   return(ks_list)
 }
 
-#----Plot reflectance histograms for each band (INCOMPLETE)----
+#----Plot reflectance histograms for each band----
 
-band_hists = function(raster1, raster2, on_overlap = T, bands = NULL){
+band.hists = function(raster1, raster2, on_overlap = T, bands = NULL){
   #wrapper function for 
   #bands can take a numeric or character vector of what bands to plot, 
   #on_overlap determines whether the operation is applied to hte whole raster or just the overlapping portion 
@@ -137,21 +137,21 @@ band_hists = function(raster1, raster2, on_overlap = T, bands = NULL){
 
 
 #----test, debug----
-# #(uncomment to use)
-# #make rasters
-# ncolumns = 1000
-# nrows = 1000
-# nlayers = 4
-# r1 = rast(ncol = ncolumns, nrow = nrows, nlyr = nlayers, xmin = 0, xmax = ncolumns, ymin = 0, ymax = nrows,
-#           vals = rnorm(ncolumns * nrows * nlayers, mean = runif(1), sd = runif(1)))
-# 
-# r2 = runif(1)*r1+runif(1)
-# 
-# #make rasters partially overlapping by assigning NA values to columns
-# r1[,1:(nrows/4)] = NA
-# r2[,(nrows:(nrows-(nrows/4)))] = NA
-# 
-# #check rmse
-# rmse(r1, r2)
-# #check nrmse
-# rmse(r1, r2, normalise_rmse = T)
+#(uncomment to use)
+#make rasters
+ncolumns = 1000
+nrows = 1000
+nlayers = 4
+r1 = rast(ncol = ncolumns, nrow = nrows, nlyr = nlayers, xmin = 0, xmax = ncolumns, ymin = 0, ymax = nrows,
+          vals = rnorm(ncolumns * nrows * nlayers, mean = runif(1), sd = runif(1)))
+
+r2 = runif(1)*r1+runif(1)
+
+#make rasters partially overlapping by assigning NA values to columns
+r1[,1:(nrows/4)] = NA
+r2[,(nrows:(nrows-(nrows/4)))] = NA
+
+#check rmse
+rmse(r1, r2)
+#check nrmse
+rmse(r1, r2, normalise_rmse = T)
