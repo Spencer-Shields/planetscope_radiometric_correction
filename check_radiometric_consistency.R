@@ -43,8 +43,8 @@ rmse = function(raster1, raster2, normalise_rmse = F, method = 'mean', verbose =
                           'mean'   = global(raster1, na.rm = T, maxcell = maxcell, fun = 'mean'),
                           'stdev'  = global(raster1, na.rm = T, maxcell = maxcell, fun = 'std'),
                           'range'  = global(raster1, na.rm = T, maxcell = maxcell, fun = 'range') %>% mutate(range = max - min),
-                          'iqr'    = setNames(global(raster1, maxcell = maxcell, fun = function(i) getiqr(i)), 'global'),
-                          'median' = setNames(global(raster1, maxcell = maxcell, fun = function(i) getmedian(i)), 'global'),
+                          'iqr'    = setNames(global(raster1, maxcell = maxcell, fun = function(i) getiqr(i)), 'iqr'),
+                          'median' = setNames(global(raster1, maxcell = maxcell, fun = function(i) getmedian(i)), 'median'),
                           stop("Invalid method")
     )
     
@@ -136,7 +136,7 @@ band.hists = function(raster1, raster2, on_overlap = T, bands = NULL){
 }
 
 
-#----test, debug----
+# # ----test, debug----
 # #(uncomment to use)
 # #make rasters
 # ncolumns = 1000
@@ -154,4 +154,4 @@ band.hists = function(raster1, raster2, on_overlap = T, bands = NULL){
 # #check rmse
 # rmse(r1, r2)
 # #check nrmse
-# rmse(r1, r2, normalise_rmse = T)
+# rmse(r1, r2, normalise_rmse = T,method='iqr')
